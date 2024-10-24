@@ -1,55 +1,44 @@
 import streamlit as st
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.preprocessing.image import img_to_array, load_img
+import cv2
 import numpy as np
+from PIL import Image
 
-# Load the MobileNetV2 model
-model = MobileNetV2(weights='imagenet')
-
-# Define the number of classes in the model (for MobileNetV2, this is 1000)
-num_classes = 1000
-
-# Example mapping for some classes (You can extend this)
-class_names = {
-    0: "tench, Tinca tinca",
-    1: "goldfish, Carassius auratus",
-    2: "great white shark, white shark, man-eater, man-eater shark",
-    3: "tiger shark, Galeocerdo cuvieri",
-    4: "hammerhead, hammerhead shark",
-    # ...
-    594: "sorrel",
-    # Extend this dictionary with more class names as needed
-}
-
-# Function to preprocess the uploaded image
-def preprocess_image(image):
-    img = load_img(image, target_size=(224, 224))  # Resize the image to 224x224
-    img_array = img_to_array(img)  # Convert the image to an array
-    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-    img_array = img_array / 255.0  # Normalize to [0, 1]
-    return img_array
+# Function to enhance image quality
+def enhance_image(image):
+    # Convert the image from RGB (PIL) to BGR (OpenCV)
+    img_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    
+    # Apply histogram equalization for contrast enhancement
+    img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    img_eq = cv2.equalizeHist(img_gray)
+    
+    # Apply a sharpening filter
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    img_sharp = cv2.filter2D(img_eq, -1, kernel)
+    
+    # Denoise the image using Non-Local Means Denoising
+    img_denoised = cv2.fastNlMeansDenoising(img_sharp, None, 10, 7, 21)
+    
+    # Convert back to RGB
+    img_enhanced = cv2.cvtColor(img_denoised, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(img_enhanced)
 
 # Streamlit UI
-st.title("Image Classification with MobileNetV2")
-st.write("Upload an image, and the model will classify it.")
+st.title("Image Quality Enhancer")
+st.write("Upload an image to enhance its quality.")
 
 # File uploader for image
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Preprocess the image
-    img_array = preprocess_image(uploaded_file)
+    # Load the image
+    image = Image.open(uploaded_file)
     
-    # Make predictions
-    predictions = model.predict(img_array)
+    # Enhance the image
+    enhanced_image = enhance_image(image)
     
-    # Get the predicted class index
-    class_idx = np.argmax(predictions[0])  # Get the index of the class with the highest score
-    confidence = predictions[0][class_idx]  # Get the confidence of the prediction
-
-    # Map class index to class name
-    predicted_class_name = class_names.get(class_idx, "Unknown class")
-
-    # Display the results
-    st.image(uploaded_file, caption="Uploaded Image.", use_column_width=True)
-    st.write(f"Prediction: {predicted_class_name} (Index: {class_idx}) with confidence: {confidence:.2f}")
+    # Display the original and enhanced images
+    st.image(image, caption="Original Image", use_column_width=True)
+    st.image(enhanced_image, caption="Enhanced Image", use_column_width=True)
