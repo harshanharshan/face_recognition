@@ -18,20 +18,25 @@ uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png
 if uploaded_file is not None:
     # Process the uploaded image
     img = Image.open(uploaded_file)
-    st.image(img, caption='Uploaded Image.', use_column_width=True)
     
-    # Prepare the image for prediction
-    img = img.resize((224, 224))  # MobileNetV2 expects 224x224 images
-    img_array = image.img_to_array(img)
+    # Resize and convert to array
+    img_resized = img.resize((224, 224))  # MobileNetV2 expects 224x224 images
+    img_array = image.img_to_array(img_resized)
     img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
     img_array = preprocess_input(img_array)
 
-    # Make predictions
-    predictions = model.predict(img_array)
-    decoded_predictions = decode_predictions(predictions, top=5)[0]  # Get top 5 predictions
+    # Display uploaded image
+    st.image(img, caption='Uploaded Image.', use_column_width=True)
 
-    st.write("Predictions:")
-    for i, (imagenet_id, label, score) in enumerate(decoded_predictions):
-        st.write(f"{i + 1}: {label} ({score:.2f})")
+    # Make predictions
+    try:
+        predictions = model.predict(img_array)
+        decoded_predictions = decode_predictions(predictions, top=5)[0]  # Get top 5 predictions
+
+        st.write("Predictions:")
+        for i, (imagenet_id, label, score) in enumerate(decoded_predictions):
+            st.write(f"{i + 1}: {label} ({score:.2f})")
+    except ValueError as e:
+        st.error(f"Error in prediction: {str(e)}")
 
 # To run the app, use the command: streamlit run app.py
