@@ -18,6 +18,10 @@ uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png
 if uploaded_file is not None:
     # Process the uploaded image
     img = Image.open(uploaded_file)
+
+    # Convert to RGB if it's not in that mode
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
     
     # Resize and convert to array
     img_resized = img.resize((224, 224))  # MobileNetV2 expects 224x224 images
