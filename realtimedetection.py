@@ -1,52 +1,46 @@
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import streamlit as st
 from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing.image import img_to_array, load_img
+import numpy as np
 
-# Load the base MobileNetV2 model
-base_model = MobileNetV2(weights='imagenet', include_top=False)
+# Load the MobileNetV2 model
+model = MobileNetV2(weights='imagenet')
 
-# Add custom layers for your specific task
-x = base_model.output
-x = GlobalAveragePooling2D()(x)
-x = Dense(128, activation='relu')(x)
-predictions = Dense(num_classes, activation='softmax')(x)
+# Define the number of classes in the model (for MobileNetV2, this is 1000)
+num_classes = 1000
 
-# Create the final model
-model = Model(inputs=base_model.input, outputs=predictions)
+# Function to preprocess the uploaded image
+def preprocess_image(image):
+    img = load_img(image, target_size=(224, 224))  # Resize the image to 224x224
+    img_array = img_to_array(img)  # Convert the image to an array
+    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+    img_array = img_array / 255.0  # Normalize to [0, 1]
+    return img_array
 
-# Freeze the base model layers
-for layer in base_model.layers:
-    layer.trainable = False
+# Streamlit UI
+st.title("Image Classification with MobileNetV2")
+st.write("Upload an image, and the model will classify it.")
 
-# Compile the model
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+# File uploader for image
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
-# Prepare your dataset
-train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)
+if uploaded_file is not None:
+    # Preprocess the image
+    img_array = preprocess_image(uploaded_file)
+    
+    # Make predictions
+    predictions = model.predict(img_array)
+    
+    # Decode the predictions to get class labels
+    decoded_predictions = model.predict(img_array)
+    class_idx = np.argmax(decoded_predictions[0])  # Get the index of the class with the highest score
+    confidence = decoded_predictions[0][class_idx]  # Get the confidence of the prediction
 
-train_generator = train_datagen.flow_from_directory(
-    'path_to_your_dataset',
-    target_size=(224, 224),
-    batch_size=32,
-    class_mode='categorical',
-    subset='training'
-)
+    # Display the results
+    st.image(uploaded_file, caption="Uploaded Image.", use_column_width=True)
+    st.write(f"Prediction: {class_idx} with confidence: {confidence:.2f}")
 
-validation_generator = train_datagen.flow_from_directory(
-    'path_to_your_dataset',
-    target_size=(224, 224),
-    batch_size=32,
-    class_mode='categorical',
-    subset='validation'
-)
+    # You can map class_idx to class names if needed
+    # class_names = {0: 'Class1', 1: 'Class2', ...}
+    # st.write(f"Predicted Class: {class_names[class_idx]}")
 
-# Train the model
-model.fit(train_generator, validation_data=validation_generator, epochs=10)
-
-# Unfreeze some layers and fine-tune
-for layer in base_model.layers[-20:]:
-    layer.trainable = True
-
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-model.fit(train_generator, validation_data=validation_generator, epochs=10)
