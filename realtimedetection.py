@@ -9,6 +9,18 @@ model = MobileNetV2(weights='imagenet')
 # Define the number of classes in the model (for MobileNetV2, this is 1000)
 num_classes = 1000
 
+# Example mapping for some classes (You can extend this)
+class_names = {
+    0: "tench, Tinca tinca",
+    1: "goldfish, Carassius auratus",
+    2: "great white shark, white shark, man-eater, man-eater shark",
+    3: "tiger shark, Galeocerdo cuvieri",
+    4: "hammerhead, hammerhead shark",
+    # ...
+    594: "sorrel",
+    # Extend this dictionary with more class names as needed
+}
+
 # Function to preprocess the uploaded image
 def preprocess_image(image):
     img = load_img(image, target_size=(224, 224))  # Resize the image to 224x224
@@ -31,16 +43,13 @@ if uploaded_file is not None:
     # Make predictions
     predictions = model.predict(img_array)
     
-    # Decode the predictions to get class labels
-    decoded_predictions = model.predict(img_array)
-    class_idx = np.argmax(decoded_predictions[0])  # Get the index of the class with the highest score
-    confidence = decoded_predictions[0][class_idx]  # Get the confidence of the prediction
+    # Get the predicted class index
+    class_idx = np.argmax(predictions[0])  # Get the index of the class with the highest score
+    confidence = predictions[0][class_idx]  # Get the confidence of the prediction
+
+    # Map class index to class name
+    predicted_class_name = class_names.get(class_idx, "Unknown class")
 
     # Display the results
     st.image(uploaded_file, caption="Uploaded Image.", use_column_width=True)
-    st.write(f"Prediction: {class_idx} with confidence: {confidence:.2f}")
-
-    # You can map class_idx to class names if needed
-    # class_names = {0: 'Class1', 1: 'Class2', ...}
-    # st.write(f"Predicted Class: {class_names[class_idx]}")
-
+    st.write(f"Prediction: {predicted_class_name} (Index: {class_idx}) with confidence: {confidence:.2f}")
