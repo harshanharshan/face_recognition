@@ -1,46 +1,52 @@
-import streamlit as st
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input, decode_predictions
-from tensorflow.keras.preprocessing import image
-import numpy as np
-from PIL import Image
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.models import Model
 
-# Load the pre-trained MobileNetV2 model
-model = MobileNetV2(weights='imagenet')
+# Load the base MobileNetV2 model
+base_model = MobileNetV2(weights='imagenet', include_top=False)
 
-# Streamlit app layout
-st.title("Image Classification with MobileNetV2")
-st.write("Upload an image, and the model will classify it.")
+# Add custom layers for your specific task
+x = base_model.output
+x = GlobalAveragePooling2D()(x)
+x = Dense(128, activation='relu')(x)
+predictions = Dense(num_classes, activation='softmax')(x)
 
-# File uploader for images
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# Create the final model
+model = Model(inputs=base_model.input, outputs=predictions)
 
-if uploaded_file is not None:
-    # Process the uploaded image
-    img = Image.open(uploaded_file)
+# Freeze the base model layers
+for layer in base_model.layers:
+    layer.trainable = False
 
-    # Convert to RGB if it's not in that mode
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    
-    # Resize and convert to array
-    img_resized = img.resize((224, 224))  # MobileNetV2 expects 224x224 images
-    img_array = image.img_to_array(img_resized)
-    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-    img_array = preprocess_input(img_array)
+# Compile the model
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    # Display uploaded image
-    st.image(img, caption='Uploaded Image.', use_column_width=True)
+# Prepare your dataset
+train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)
 
-    # Make predictions
-    try:
-        predictions = model.predict(img_array)
-        decoded_predictions = decode_predictions(predictions, top=5)[0]  # Get top 5 predictions
+train_generator = train_datagen.flow_from_directory(
+    'path_to_your_dataset',
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical',
+    subset='training'
+)
 
-        st.write("Predictions:")
-        for i, (imagenet_id, label, score) in enumerate(decoded_predictions):
-            st.write(f"{i + 1}: {label} ({score:.2f})")
-    except ValueError as e:
-        st.error(f"Error in prediction: {str(e)}")
+validation_generator = train_datagen.flow_from_directory(
+    'path_to_your_dataset',
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical',
+    subset='validation'
+)
 
-# To run the app, use the command: streamlit run app.py
+# Train the model
+model.fit(train_generator, validation_data=validation_generator, epochs=10)
+
+# Unfreeze some layers and fine-tune
+for layer in base_model.layers[-20:]:
+    layer.trainable = True
+
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.fit(train_generator, validation_data=validation_generator, epochs=10)
